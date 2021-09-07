@@ -1,0 +1,406 @@
+{$CLEO}  // Скрипт для GTA SA, реализующий поворотники на автомобилях и мотоциклах главного героя и AI. Убраны опкоды 0B10, 0B15. Добавлена проверка <> 0xFFFF
+const
+    0_VehicleHandle = 0@
+    0_VehicleStruct = 1@
+    0_TractorStruct = 2@
+        0_PointAdress = 2@
+            0_Adress = 2@
+                0_VectorPointer = 2@
+    0_PrewPathPointID = 3@  // массив ИД точек
+    0_CurrPathPointID = 4@
+    0_NextPathPointID = 5@
+    0_CarX = 6@
+        0_PrewX = 6@            // массив X координат точек
+            0_FrontLightX = 6@
+    0_CarY = 7@
+        0_CurrX = 7@
+            0_FrontLightY = 7@
+    0_CarZ = 8@
+        0_NextX = 8@
+            0_FrontLightZ = 8@
+    0_CarCamDistForw = 9@
+        0_PrewY = 9@           // массив Y координат точек
+            0_BackLightX = 9@
+    0_CarCamDistBack = 10@
+        0_CurrY = 10@
+            0_BackLightY = 10@
+    0_NextY = 11@
+        0_BackLightZ = 11@
+    0_CamX = 12@
+    0_CamY = 13@
+    0_CamZ = 14@
+    0_CurrentCarOfPlayer = 15@
+        0_VehicleType = 15@
+    0_OldCarOfPlayer = 16@
+    0_StatusOfPlayerCar = 17@
+    0_CamTargetMirrorX = 18@    
+    0_CamTargetMirrorY = 19@    
+    0_CamTargetMirrorZ = 20@    
+    0_CamTargetX = 21@    
+    0_CamTargetY = 22@    
+    0_CamTargetZ = 23@
+    0_CarDriver = 24@
+    0_UnicalNumberOfCorona = 25@
+    0_LightsStatus = 26@
+    0_Angle1 = 27@
+    0_Angle2 = 28@
+
+    // 31@
+    
+    1_RadiusOfSearch = 200.0 // радиус поиска транспорта, м
+    
+    // Режимы:
+    1_Left = 1
+    1_Right = 2
+    1_Both = 3
+end
+0_OldCarOfPlayer = -1
+while true
+    wait 0
+    if
+        not player.defined($player_char)
+    then
+        continue
+    end
+
+    if
+        32@ > 1000
+    then
+        32@ = 0
+    end
+    
+    if and
+        actor.Driving($PLAYER_ACTOR)
+        84C8:   not actor $PLAYER_ACTOR driving_flying_vehicle
+        84A7:   not actor $PLAYER_ACTOR driving_boat 
+        89AE:   not actor $PLAYER_ACTOR driving_train
+        not actor.DrivingVehicleType($PLAYER_ACTOR #BMX)
+        not actor.DrivingVehicleType($PLAYER_ACTOR #BIKE)
+        not actor.DrivingVehicleType($PLAYER_ACTOR #MTBIKE)
+    then    
+        03C0: 0_CurrentCarOfPlayer = actor $PLAYER_ACTOR car
+        046C: 0_CarDriver = car 0_CurrentCarOfPlayer driver
+        if 
+            003B:   0_CarDriver == $PLAYER_ACTOR // (int) 
+        then
+            if
+                803B:   not  0_CurrentCarOfPlayer == 0_OldCarOfPlayer // (int)      
+            then
+                0_StatusOfPlayerCar = 0
+                0085: 0_OldCarOfPlayer = 0_CurrentCarOfPlayer // (int) 
+            end
+            
+            if
+                0AB0:  key_pressed 90 // Z
+            then
+                0_StatusOfPlayerCar = 1_Left 
+            else
+                if
+                    0AB0:  key_pressed 88 // X
+                then
+                    0_StatusOfPlayerCar = 1_Both 
+                else
+                    if
+                        0AB0:  key_pressed 67 // C
+                    then
+                        0_StatusOfPlayerCar = 1_Right
+                    else
+                        if
+                            0AB0:  key_pressed 16 // Shift
+                        then
+                            0_StatusOfPlayerCar = 0
+                        end 
+                    end                    
+                end        
+            end
+        end // CJ -driver          
+    end  // actor driving 
+
+    068D: get_camera_position_to 0_CamTargetMirrorX 0_CamTargetMirrorY 0_CamTargetMirrorZ              
+    068E: get_camera_target_point_to 0_CamTargetX 0_CamTargetY 0_CamTargetZ  
+    0063: 0_CamTargetX -= 0_CamTargetMirrorX // (float) 
+    0063: 0_CamTargetY -= 0_CamTargetMirrorY // (float) 
+    0063: 0_CamTargetZ -= 0_CamTargetMirrorZ // (float) 
+    0063: 0_CamTargetMirrorX -= 0_CamTargetX // (float) 
+    0063: 0_CamTargetMirrorY -= 0_CamTargetY // (float) 
+    0063: 0_CamTargetMirrorZ -= 0_CamTargetZ // (float)
+    068D: get_camera_position_to 0_CamX 0_CamY 0_CamZ
+    068E: get_camera_target_point_to 0_CamTargetX 0_CamTargetY 0_CamTargetZ
+    
+    0A9F: 0_UnicalNumberOfCorona = current_thread_pointer
+
+    if
+        0AE2: 0_VehicleHandle = random_vehicle_near_point 0_CamX 0_CamY 0_CamZ in_radius 1_RadiusOfSearch find_next 0 pass_wrecked 1 //IF and SET
+    then
+        repeat
+            0A97: 0_VehicleStruct = car 0_VehicleHandle struct
+            0A8E: 0_VehicleType = 0_VehicleStruct + 1424 // int
+            0A8D: 0_VehicleType = read_memory 0_VehicleType size 1 virtual_protect 0
+            if and
+                0_VehicleType <> 0
+                0_VehicleType <> 9
+            then
+                continue
+            end
+            0AA8: call_function_method 0x6D1080 struct 0_VehicleStruct num_params 0 pop 0 0_VehicleType // _CVehicleBase__getVehicleType
+            if and
+                0_VehicleType <> 1
+                0_VehicleType <> 2
+            then
+                continue
+            end            
+            0A8E: 0_TractorStruct = 0_VehicleStruct + 0x4C4 // int
+            0A8D: 0_TractorStruct = read_memory 0_TractorStruct size 4 virtual_protect 0
+            car.StorePos(0_VehicleHandle 0_CarX 0_CarY 0_CarZ)
+            050A: 0_CarCamDistBack = distance_between_XYZ 0_CarX 0_CarY 0_CarZ and_XYZ 0_CamTargetMirrorX 0_CamTargetMirrorY 0_CamTargetMirrorZ 
+            050A: 0_CarCamDistForw = distance_between_XYZ 0_CarX 0_CarY 0_CarZ and_XYZ 0_CamTargetX 0_CamTargetY 0_CamTargetZ           
+            if or
+                0025:   0_CarCamDistForw > 0_CarCamDistBack // (float) 
+                0_TractorStruct > 0
+                0137:  car 0_VehicleHandle model == #BMX 
+                0137:  car 0_VehicleHandle model == #BIKE 
+                0137:  car 0_VehicleHandle model == #MTBIKE 
+                0686:   car 0_VehicleHandle attached  
+            then                    
+                continue
+            end
+            046C: 0_CarDriver = car 0_VehicleHandle driver
+            if and
+                803B:   not  0_VehicleHandle == 0_OldCarOfPlayer // (int)  
+                0_CarDriver <= 0
+            then
+                continue
+            end    
+            if
+                32@ <= 500
+            then
+                gosub @Turn_signals_process
+            end   
+        until 8AE2: not 0_VehicleHandle = random_vehicle_near_point 0_CamX 0_CamY 0_CamZ in_radius 1_RadiusOfSearch find_next 1 pass_wrecked 1 //IF and SET
+    end    
+end
+
+:Turn_signals_process    
+if
+    003B:   0_VehicleHandle == 0_OldCarOfPlayer // (int) 
+then
+    0085: 0_LightsStatus = 0_StatusOfPlayerCar // (int) 
+    gosub @Get_lights_coords
+    if or
+        0_LightsStatus == 1_Right
+        0_LightsStatus == 1_Both
+    then
+        0AC7: 0_VectorPointer = var 0_FrontLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+        0AC7: 0_VectorPointer = var 0_BackLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+    end
+    if or
+        0_LightsStatus == 1_Left
+        0_LightsStatus == 1_Both
+    then
+        0_BackLightX *= -1.0
+        0_FrontLightX *= -1.0
+        0AC7: 0_VectorPointer = var 0_FrontLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+        0AC7: 0_VectorPointer = var 0_BackLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+    end        
+else
+    0_LightsStatus = 0
+    0A8E: 0_NextPathPointID = 0_VehicleStruct + 0x3A6 // int   НОМЕР СЛЕДУЮЩЕЙ ТОЧКИ ПУТИ      0x3A6
+    0A8E: 0_CurrPathPointID = 0_VehicleStruct + 0x3A4 // int   НОМЕР ТЕКУЩЕЙ ТОЧКИ ПУТИ         0x3A4
+    0A8E: 0_PrewPathPointID = 0_VehicleStruct + 0x3A8 // int   НОМЕР ПРЕДЫДУЩЕЙ ТОЧКИ ПУТИ     0x3A8
+    0A8D: 0_CurrPathPointID = read_memory 0_CurrPathPointID size 2 virtual_protect 0
+    0A8D: 0_NextPathPointID = read_memory 0_NextPathPointID size 2 virtual_protect 0
+    0A8D: 0_PrewPathPointID = read_memory 0_PrewPathPointID size 2 virtual_protect 0
+    if
+        0_CurrPathPointID <> 0xFFFF
+    then
+        for 31@ = 0 to 2
+            if
+                3@(31@,3i) <> 0xFFFF
+            then    
+                0085: 0_PointAdress = 3@(31@,3i) // (int) 
+                
+                0AC6: 30@ = label @SHR_0Ah offset
+                0AA8: call_function_method 30@ struct 3@(31@,3i) num_params 0 pop 0 3@(31@,3i)
+             //   0B15: 3@(31@,3i) = 3@(31@,3i) SHR 0xA   ////////////////////////////////////////////////////////////
+             
+                3@(31@,3i) *= 4
+                3@(31@,3i) += 0x96F854
+                0A8D: 3@(31@,3i) = read_memory 3@(31@,3i) size 4 virtual_protect 0
+                    
+                if
+                    3@(31@,3i) <> 0
+                then
+                    0085: 3@(31@,3i) = 0_PointAdress // (int)
+    
+                    0AC6: 30@ = label @AND_3FFh offset
+                    0AA8: call_function_method 30@ struct 0_PointAdress num_params 0 pop 0 0_PointAdress               
+                 //   0B10: 0_PointAdress = 0_PointAdress AND 0x3FF ///////////////////////////////////////////////////
+                   
+                    0_PointAdress *= 0xE
+                    
+                    0AC6: 30@ = label @SHR_0Ah offset
+                    0AA8: call_function_method 30@ struct 3@(31@,3i) num_params 0 pop 0 3@(31@,3i)                
+                  //  0B15: 3@(31@,3i) = 3@(31@,3i) SHR 0xA ///////////////////////////////////////////////////////////
+                   
+                    3@(31@,3i) *= 4
+                    3@(31@,3i) += 0x96F974
+                    0A8D: 3@(31@,3i) = read_memory 3@(31@,3i) size 4 virtual_protect 0
+                    005A: 0_PointAdress += 3@(31@,3i) // (int) 
+                            
+                    0085: 6@(31@,3i) = 0_PointAdress // (int)
+                    0A8E: 9@(31@,3i) = 0_PointAdress + 2 // int 
+                            
+                    0A8D: 6@(31@,3i) = read_memory 6@(31@,3i) size 2 virtual_protect 0
+                    if
+                        6@(31@,3i) >= 0x8000 // negative word
+                    then
+                        6@(31@,3i) += 0xFFFF0000 // convert to negative dword
+                    end 
+                    0093: 6@(31@,3i) = integer 6@(31@,3i) to_float 
+                    6@(31@,3f) /= 8.0
+                            
+                    0A8D: 9@(31@,3i) = read_memory 9@(31@,3i) size 2 virtual_protect 0
+                    if
+                        9@(31@,3i) >= 0x8000 // negative word
+                    then
+                        9@(31@,3i) += 0xFFFF0000 // convert to negative dword
+                    end 
+                    0093: 9@(31@,3i) = integer 9@(31@,3i) to_float 
+                    9@(31@,3f) /= 8.0   
+                end
+            else
+                6@(31@,3i) = 0.0
+                9@(31@,3i) = 0.0
+            end // <> 0xFFFF          
+        end   // for end  
+    
+        0063: 0_NextX -= 0_CurrX // (float) 
+        0063: 0_NextY -= 0_CurrY // (float) 
+        0063: 0_CurrX -= 0_PrewX // (float)
+        0063: 0_CurrY -= 0_PrewY // (float) 
+     
+        0604: get_Z_angle_for_point 0_NextX 0_NextY store_to 0_Angle1 
+        0604: get_Z_angle_for_point 0_CurrX 0_CurrY store_to 0_Angle2 
+        0063: 0_Angle1 -= 0_Angle2 // (float)
+        0656: get_angle 0_Angle1 absolute_degrees_to 0_Angle1 
+        if and
+            0_Angle1 >= 30.0
+            0_Angle1 < 180.0
+        then
+            0_LightsStatus = 1_Left
+        else
+            if and
+                0_Angle1 <= 330.0
+                0_Angle1 > 180.0
+            then
+                0_LightsStatus = 1_Right
+            else
+                0_LightsStatus = 0
+            end
+        end   // LightsStatus
+        gosub @Get_lights_coords
+        if
+            0_LightsStatus == 1_Right
+        then
+            0AC7: 0_VectorPointer = var 0_FrontLightX offset
+            0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+            0_UnicalNumberOfCorona += 1
+            0AC7: 0_VectorPointer = var 0_BackLightX offset
+            0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+            0_UnicalNumberOfCorona += 1
+        end
+        if 
+            0_LightsStatus == 1_Left
+        then
+            0_BackLightX *= -1.0
+            0_FrontLightX *= -1.0
+            0AC7: 0_VectorPointer = var 0_FrontLightX offset
+            0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+            0_UnicalNumberOfCorona += 1
+            0AC7: 0_VectorPointer = var 0_BackLightX offset
+            0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+            0_UnicalNumberOfCorona += 1
+        end        
+    end   // FFFF    3A4     
+end 
+
+0_VehicleStruct += 0x4C8 
+0A8D: 0_VehicleStruct = read_memory 0_VehicleStruct size 4 virtual_protect 0
+if
+    0_VehicleStruct > 0
+then
+    gosub @Get_lights_coords
+    if or
+        0_LightsStatus == 1_Right
+        0_LightsStatus == 1_Both
+    then
+        0AC7: 0_VectorPointer = var 0_BackLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+    end
+    if or
+        0_LightsStatus == 1_Left
+        0_LightsStatus == 1_Both
+    then
+        0_BackLightX *= -1.0
+        0AC7: 0_VectorPointer = var 0_BackLightX offset
+        0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 50.0 0 penetration 0.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
+        0_UnicalNumberOfCorona += 1
+    end    
+end
+  
+return
+
+:Get_lights_coords
+0A8E: 0_Adress = 0_VehicleStruct + 0x22 // int 
+0A8D: 0_Adress = read_memory 0_Adress size 2 virtual_protect 0 //model index
+0_Adress *= 4
+0_Adress += 0xA9B0C8
+0A8D: 0_Adress = read_memory 0_Adress size 4 virtual_protect 0 //CModel
+0_Adress += 0x5C                                        
+0A8D: 0_Adress = read_memory 0_Adress size 4 virtual_protect 0 //vehicle struct
+0A8D: 0_FrontLightX = read_memory 0_Adress size 4 virtual_protect 0 //x offset
+0_Adress += 4
+0A8D: 0_FrontLightY = read_memory 0_Adress size 4 virtual_protect 0 //y offset
+0_Adress += 4
+0A8D: 0_FrontLightZ = read_memory 0_Adress size 4 virtual_protect 0 //z offset
+0_Adress += 4
+0A8D: 0_BackLightX = read_memory 0_Adress size 4 virtual_protect 0 //x offset
+0_Adress += 4
+0A8D: 0_BackLightY = read_memory 0_Adress size 4 virtual_protect 0 //y offset
+0_Adress += 4
+0A8D: 0_BackLightZ = read_memory 0_Adress size 4 virtual_protect 0 //z offset
+if
+    0_FrontLightX == 0.0
+then
+    0_FrontLightX = 0.15
+end
+if
+    0_BackLightX == 0.0
+then
+    0_BackLightX = 0.15
+end
+return
+
+:SHR_0Ah
+hex
+    C1 E9 0A          // shr ecx, 0xA
+    89 C8             // mov eax, ecx
+    C3                // retn
+end
+
+:AND_3FFh
+hex
+    81 E1 FF 03 00 00 // and ecx, 0x3FF
+    89 C8             // mov eax, ecx
+    C3                // retn
+end
+// 0AA5: 0x6FC580 21 21 1 0 attach_corona_flash_inertia 15.0 0 penetration 1.5 0 0 0 0 0 flare 0 type 0 range_of_visibility 150.0 radius 0.3 with_offsets 0_VectorPointer intensity 255 blue 0 green 128 red 255 to_physical 0_VehicleStruct unical_number 0_UnicalNumberOfCorona
