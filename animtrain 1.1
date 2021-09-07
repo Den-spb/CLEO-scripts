@@ -1,0 +1,720 @@
+{$CLEO} // Скрипт, оживляющий ходовую часть локомотивов, вагонов и трамваев в GTA SA
+const
+    // Variables:
+    0_Train = 0@
+    0_CarriageStruct = 1@
+    0_TrainRoute = 2@
+        0_Component = 2@
+    0_StartOfTracksNdatContent = 3@
+    0_AdressOfLastPointInRoute = 4@
+    0_CurrentPointAdress = 5@
+    0_X1 = 6@
+    0_Y1 = 7@
+    0_Z1 = 8@
+    0_X2 = 9@
+    0_Y2 = 10@
+    0_Z2 = 11@
+    0_CarriageHandle = 12@
+    0_ComponentForwardOffset = 13@
+        0_XBack = 13@
+            0_XResult = 13@
+                0_CarriageZAngle = 13@
+                    0_BackUpX = 13@    
+    0_ComponentBackOffset = 14@
+        0_YBack = 14@
+            0_YResult = 14@
+                0_CarriageXAngle = 14@
+                    0_BackUpY = 14@
+                        0_AtY = 14@
+                            0_StringPart1 = 14@
+                                0_ComponentName = 14@s
+    0_XForw = 15@
+        0_ZResult = 15@
+            0_BackUpZ = 15@
+                0_AtZ = 15@
+                    0_StringPart2 = 15@
+    0_YForw = 16@
+        0_ZAngle = 16@
+            0_DoorYOffset = 16@
+    0_ForwDistance = 17@
+        0_XAngle = 17@
+    0_BackDistance = 18@
+        0_ComponentStruct = 18@
+    0_Flags = 19@ 
+    0_CurrentWheelAngle = 20@
+    0_LFDoorPos = 21@
+    0_LRDoorPos = 22@
+    0_RFDoorPos = 23@
+    0_RRDoorPos = 24@
+    0_IncrementOfWheelAngle = 25@
+    0_IncrementOfDoorPos = 26@
+    0_IncrementOfPantographAngle = 27@
+    0_FirstPantographAngle = 28@
+    0_SecondPantographAngle = 29@   
+    // 31@ - одноразовая переменная и индекс в массивах  
+    
+    //Constants:
+    1_RadiusOfWheel = 0.6  // радиус железнодорожного колеса, м
+    1_WidthOfDoor = 0.6 // ширина (ход) створки дверей, м
+    1_SpeedOfDoorsOpening = 0.6 // скорость открытия и закрытия дверей, м/с
+    1_MinPantographAngle = 5.0 // начальный угол поднятия колен пантографа, град
+    1_MaxPantographAngle = 45.0 // конечный угол поднятия колен пантографа, град
+    1_2MaxPantAngle = 50.0 // конечный угол поднятия колен пантографа c запасом, град (увеличить, если пантограф не фиксируется в верхн.положении)
+    1_AngularVelocityOfPantograph = 45.0 // угловая скорость поднятия и опускания пантографа, град/с
+    1_ProportionOfPantographAngles = 0.8 // отношение угла подъёма верхнего колена пантографа к углу подъёма нижнего колена пантографа
+end
+
+wait 0
+while true
+    32@ = 0
+    wait 5
+    if
+        not player.Defined($PLAYER_CHAR)
+    then
+        continue
+    end
+
+    if
+        0AE2: 0_Train = random_vehicle_near_point 0.0 0.0 0.0 in_radius 6000.0 find_next 0 pass_wrecked 1 //IF and SET
+    then
+        repeat
+            0A97: 0_CarriageStruct = car 0_Train struct
+            0A8E: 31@ = 0_CarriageStruct + 1424 // int
+            0A8D: 31@ = read_memory 31@ size 1 virtual_protect 0
+            if
+                31@ == 6
+            then    
+                0_CarriageStruct += 0x5D0
+                0A8D: 0_CarriageStruct = read_memory 0_CarriageStruct size 4 virtual_protect 0
+                if
+                    0_CarriageStruct == 0   // предыдущий вагон отсутствует (данный вагон является нулевым)
+                then
+                    if
+                        8981: not train 0_Train wrecked 
+                    then
+                        gosub @_CTrain_process_control
+                    end
+                end
+            end
+        until 8AE2: not 0_Train = random_vehicle_near_point 0.0 0.0 0.0 in_radius 6000.0 find_next 1 pass_wrecked 1 //IF and SET
+    end
+end
+
+
+:_CTrain_process_control   
+
+if
+    09E3:   train 0_Train on_forward_direction
+then
+    06DE: 0_CarriageStruct = get_train 0_Train last_carriage_handle
+    0A97: 0_CarriageStruct = car 0_CarriageStruct struct
+else
+    0A97: 0_CarriageStruct = car 0_Train struct
+end
+
+0A8E: 0_TrainRoute = 0_CarriageStruct + 0x5C0 // int
+0A8D: 0_TrainRoute = read_memory 0_TrainRoute size 1 virtual_protect 0 // train route
+0_TrainRoute *= 4
+
+0A8E: 0_StartOfTracksNdatContent = 0_TrainRoute + 0xC38024 // _tracksDatContents // int 
+0A8D: 0_StartOfTracksNdatContent = read_memory 0_StartOfTracksNdatContent size 4 virtual_protect 0 // start of tracksN.dat content
+
+0A8E: 0_AdressOfLastPointInRoute = 0_TrainRoute + 0xC38014 // _tracksDatLineCount // int 
+0A8D: 0_AdressOfLastPointInRoute = read_memory 0_AdressOfLastPointInRoute size 4 virtual_protect 0 // quantity of route points
+0_AdressOfLastPointInRoute *= 10
+0_AdressOfLastPointInRoute -= 10
+005A: 0_AdressOfLastPointInRoute += 0_StartOfTracksNdatContent // (int)   adress of last point in route
+
+0A8E: 0_CurrentPointAdress = 0_CarriageStruct + 0x5A0 // int
+0A8D: 0_CurrentPointAdress = read_memory 0_CurrentPointAdress size 2 virtual_protect 0 // current point of train
+0_CurrentPointAdress *= 10
+005A: 0_CurrentPointAdress += 0_StartOfTracksNdatContent
+
+0085: 0_X1 = 0_CurrentPointAdress // (int) 
+0A8E: 0_Y1 = 0_CurrentPointAdress + 2 // int  Y NPoint
+0A8E: 0_Z1 = 0_CurrentPointAdress + 4 // int  Z NPoint
+0_CurrentPointAdress += 10
+
+if
+    001D: 0_CurrentPointAdress > 0_AdressOfLastPointInRoute // (int) 
+then
+    0085: 0_CurrentPointAdress = 0_StartOfTracksNdatContent // (int) 
+end
+
+0085: 0_X2 = 0_CurrentPointAdress // (int) 
+0A8E: 0_Y2 = 0_CurrentPointAdress + 2 // int  Y NPoint
+0A8E: 0_Z2 = 0_CurrentPointAdress + 4 // int  Z NPoint
+
+for 31@ = 0 to 5
+    0A8D: 6@(31@,3i) = read_memory 6@(31@,3i) size 2 virtual_protect 0
+    if
+        6@(31@,3i) >= 0x8000 // negative word
+    then
+        6@(31@,3i) += 0xFFFF0000 // convert to negative dword
+    end 
+    0093: 6@(31@,3f) = integer 6@(31@,3i) to_float
+    6@(31@,3f) /= 8.0      
+end  
+
+0_Flags = 0
+
+0A8E: 0_IncrementOfWheelAngle = 0_CarriageStruct + 0x5A4
+0A8D: 0_IncrementOfWheelAngle = read_memory 0_IncrementOfWheelAngle size 4 virtual_protect 0 // current speed of train
+
+if
+    09E3: train 0_Train on_forward_direction 
+then
+    0_IncrementOfWheelAngle *= -50.0 // convert to m/s
+else
+    0_IncrementOfWheelAngle *= 50.0 // convert to m/s
+end 
+            
+0093: 31@ = integer 32@ to_float
+31@ /= 1000.0 // ms to sec
+006B: 0_IncrementOfWheelAngle *= 31@ // (float)  s = v * t
+0_IncrementOfWheelAngle /= 1_RadiusOfWheel // angle (rad) 
+0_IncrementOfWheelAngle *= 57.29578
+
+0_IncrementOfDoorPos = 1_SpeedOfDoorsOpening
+006B: 0_IncrementOfDoorPos *= 31@ // (float)  s = v * t
+
+0_IncrementOfPantographAngle = 1_AngularVelocityOfPantograph
+006B: 0_IncrementOfPantographAngle *= 31@ // (float)  s = v * t
+
+while 0_CarriageStruct > 0
+                                                                                 
+    0AEB: 0_CarriageHandle = car_struct 0_CarriageStruct handle            
+       
+    if
+        09E3:   train 0_Train on_forward_direction
+    then
+        0A8E: 0_Component = 0_CarriageStruct + 0x6A8 // int 
+    else
+        0A8E: 0_Component = 0_CarriageStruct + 0x6A4 // int
+    end      
+    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0 
+    
+    if
+        0_Component > 0
+    then          
+        gosub @_Calculate_bogie_rotation_func
+        gosub @_Set_component_rotation_func       
+    end
+
+    if
+        09E3:   train 0_Train on_forward_direction
+    then
+        0A8E: 0_Component = 0_CarriageStruct + 0x6A4 // int 
+    else
+        0A8E: 0_Component = 0_CarriageStruct + 0x6A8 // int
+    end      
+    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0 
+    
+    if
+        0_Component > 0
+    then          
+        gosub @_Calculate_bogie_rotation_func
+        gosub @_Set_component_rotation_func       
+    end
+    
+    0_ZAngle = 0.0
+    0087: 0_XAngle = 0_CurrentWheelAngle // (float)
+        
+    0A8E: 0_Component = 0_CarriageStruct + 0x6A4 // int       Bogie_front
+    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+    gosub @_Get_pointers_of_wheels_and_to_set_wheels_rotation_func
+    
+    0A8E: 0_Component = 0_CarriageStruct + 0x6A8 // int       Bogie_rear
+    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+    gosub @_Get_pointers_of_wheels_and_to_set_wheels_rotation_func              
+
+    if
+        88B7:   not test 0_Flags bit 1
+    then
+        0A8E: 0_Component = 0_CarriageStruct + 0x674            
+        0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+        if
+            0_Component > 0
+        then
+            0_Component += 0x9C
+            0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+            if
+                0_Component > 0
+            then                
+                0_Component += 0x9C
+                0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                if
+                    0_Component > 0   // doors
+                then                
+                    0_Component += 0x98
+                    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                    if
+                        0_Component > 0   // LF door
+                    then
+                        0A8E: 0_DoorYOffset = 0_Component + 68 // int                     
+                        if
+                            88B7:   not test 0_Flags bit 2
+                        then
+                            0A8D: 0_LFDoorPos = read_memory 0_DoorYOffset size 4 virtual_protect 0         
+                            if
+                                00DB:   actor $PLAYER_ACTOR in_car 0_Train 
+                            then
+                                if
+                                    0_LFDoorPos >= 1_WidthOfDoor  // левые двери открыты
+                                then
+                                    if
+                                        0AB0:  key_pressed 97 // закрытие левых дверей
+                                    then
+                                        0063: 0_LFDoorPos -= 0_IncrementOfDoorPos // (float) 
+                                    end    
+                                else
+                                    if
+                                        0AB0:  key_pressed 103 // открытие левых дверей    
+                                    then
+                                        005B: 0_LFDoorPos += 0_IncrementOfDoorPos // (float) 
+                                    else
+                                        0063: 0_LFDoorPos -= 0_IncrementOfDoorPos // (float)
+                                    end
+                                end            
+                            else
+                                if and
+                                    0_LFDoorPos > 0.0
+                                    0_LFDoorPos < 1_WidthOfDoor
+                                then
+                                    0063: 0_LFDoorPos -= 0_IncrementOfDoorPos // (float)
+                                end                            
+                            end
+                            if
+                                0_LFDoorPos > 1_WidthOfDoor
+                            then
+                                0_LFDoorPos = 1_WidthOfDoor
+                            else
+                                if
+                                    0_LFDoorPos < 0.0
+                                then
+                                    0_LFDoorPos = 0.0
+                                end
+                            end     
+                            0087: 0_LRDoorPos = 0_LFDoorPos // (float)
+                            0_LRDoorPos *= -1.0                             
+                        end
+                        0A8C: write_memory 0_DoorYOffset size 4 value 0_LFDoorPos virtual_protect 0
+                        0_Component += 0x9C
+                        0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                        if
+                            0_Component > 0   // LR Door
+                        then
+                            0A8E: 0_DoorYOffset = 0_Component + 68 // int 
+                            0A8C: write_memory 0_DoorYOffset size 4 value 0_LRDoorPos virtual_protect 0
+                            
+                            0_Component += 0x9C
+                            0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                            if
+                                0_Component > 0   // RF Door
+                            then
+                                0A8E: 0_DoorYOffset = 0_Component + 68 // int
+                                if
+                                    88B7:   not test 0_Flags bit 2
+                                then
+                                    0A8D: 0_RFDoorPos = read_memory 0_DoorYOffset size 4 virtual_protect 0          
+                                    if
+                                        00DB:   actor $PLAYER_ACTOR in_car 0_Train 
+                                    then
+                                        if
+                                            0_RFDoorPos >= 1_WidthOfDoor  // правые двери открыты
+                                        then
+                                            if
+                                                0AB0:  key_pressed 98 // закрытие правых дверей
+                                            then
+                                                0063: 0_RFDoorPos -= 0_IncrementOfDoorPos // (float) 
+                                            end    
+                                        else
+                                            if
+                                                0AB0:  key_pressed 104 // открытие правых дверей    
+                                            then
+                                                005B: 0_RFDoorPos += 0_IncrementOfDoorPos // (float) 
+                                            else
+                                                0063: 0_RFDoorPos -= 0_IncrementOfDoorPos // (float)
+                                            end
+                                        end            
+                                    else                                    
+                                        046C: 31@ = car 0_Train driver
+                                        if
+                                            31@ > 0
+                                        then
+                                            if
+                                                01C1:   car 0_Train stopped 
+                                            then
+                                                005B: 0_RFDoorPos += 0_IncrementOfDoorPos // (float)
+                                            else
+                                                0063: 0_RFDoorPos -= 0_IncrementOfDoorPos // (float)
+                                            end
+                                        else
+                                            if and
+                                                0_RFDoorPos > 0.0
+                                                0_RFDoorPos < 1_WidthOfDoor
+                                            then
+                                                0063: 0_RFDoorPos -= 0_IncrementOfDoorPos // (float)
+                                            end
+                                        end                                   
+                                    end
+                                    if
+                                        0_RFDoorPos > 1_WidthOfDoor
+                                    then
+                                        0_RFDoorPos = 1_WidthOfDoor
+                                    else
+                                        if
+                                            0_RFDoorPos < 0.0
+                                        then
+                                            0_RFDoorPos = 0.0
+                                        end
+                                    end     
+                                    0087: 0_RRDoorPos = 0_RFDoorPos // (float)
+                                    0_RRDoorPos *= -1.0                             
+                                    08BD: set 0_Flags bit 2
+                                end
+                                0A8C: write_memory 0_DoorYOffset size 4 value 0_RFDoorPos virtual_protect 0
+                                0_Component += 0x9C
+                                0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                                if
+                                    0_Component > 0   // RR Door
+                                then
+                                    0A8E: 0_DoorYOffset = 0_Component + 68 // int 
+                                    0A8C: write_memory 0_DoorYOffset size 4 value 0_RRDoorPos virtual_protect 0 
+                                else
+                                    08BD: set 0_Flags bit 1    
+                                end                                                                  
+                            else
+                                08BD: set 0_Flags bit 1    
+                            end                               
+                        else
+                            08BD: set 0_Flags bit 1    
+                        end
+                    else
+                        08BD: set 0_Flags bit 1    
+                    end               
+                else
+                    08BD: set 0_Flags bit 1
+                end
+            else
+                08BD: set 0_Flags bit 1
+            end
+        else
+            08BD: set 0_Flags bit 1
+        end    
+    end
+
+    if
+        003B:   0_CarriageHandle == 0_Train // (int) 
+    then 
+        0A8E: 0_Component = 0_CarriageStruct + 0x6A8 // int       Bogie_rear
+        0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0  
+        if
+            0_Component > 0
+        then
+            0_Component += 0x9C
+            0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+            if
+                0_Component > 0
+            then
+                0A8E: 0_StringPart1 = 0_Component + 172 // int    
+                0A8E: 0_StringPart2 = 0_Component + 176 // int
+                0A8D: 0_StringPart1 = read_memory 0_StringPart1 size 4 virtual_protect 0
+                0A8D: 0_StringPart2 = read_memory 0_StringPart2 size 4 virtual_protect 0                 
+                if
+                    05AE:  0_ComponentName == '1panpart' 
+                then
+                    0A8E: 0_AtY = 0_Component + 52 // int
+                    0A8E: 0_AtZ = 0_Component + 56 // int
+                    0A8D: 0_AtY = read_memory 0_AtY size 4 virtual_protect 0
+                    0A8D: 0_AtZ = read_memory 0_AtZ size 4 virtual_protect 0   
+                    
+                    0604: get_angle_between_vectors_{y,z} 0_AtY 0_AtZ and_{0,1}_store_to 0_FirstPantographAngle // X_angle
+                   
+                    if
+                        00DB:   actor $PLAYER_ACTOR in_car 0_Train
+                    then
+                        if
+                            0_FirstPantographAngle >= 1_MaxPantographAngle  // пантограф поднят          
+                        then
+                            if
+                                0AB0:  key_pressed 99  // кнопка опускания пантографа
+                            then
+                                0063: 0_FirstPantographAngle -= 0_IncrementOfPantographAngle // (float)    
+                            end
+                        else
+                            if
+                                0AB0:  key_pressed 105  // кнопка поднятия пантографа
+                            then
+                                005B: 0_FirstPantographAngle += 0_IncrementOfPantographAngle // (float) 
+                            else
+                                0063: 0_FirstPantographAngle -= 0_IncrementOfPantographAngle // (float)
+                            end
+                        end
+                    else
+                        046C: 31@ = car 0_Train driver
+                        if
+                            31@ > 0
+                        then
+                            0_FirstPantographAngle = 1_MaxPantographAngle
+                        else
+                            if and
+                                0_FirstPantographAngle < 1_MaxPantographAngle
+                                0_FirstPantographAngle > 1_MinPantographAngle
+                            then
+                                005B: 0_FirstPantographAngle += 0_IncrementOfPantographAngle // (float) 
+                            end
+                        end                              
+                    end
+                    
+                    if 
+                        0_FirstPantographAngle < 1_MinPantographAngle
+                    then
+                        0_FirstPantographAngle = 1_MinPantographAngle
+                    else
+                        if
+                            0_FirstPantographAngle > 1_2MaxPantAngle
+                        then
+                            0_FirstPantographAngle = 1_2MaxPantAngle
+                        end
+                    end    
+                    
+                    0_FirstPantographAngle /= 57.29578   // rad
+                    0087: 0_SecondPantographAngle = 0_FirstPantographAngle // (float) 
+                    0_SecondPantographAngle *= 1_ProportionOfPantographAngles
+                    
+                    0085: 31@ = 0_Component // (int) 
+
+                    0_ZAngle = 0.0 // rad
+                    0087: 0_XAngle = 0_FirstPantographAngle // (float)
+                                       
+                    gosub @_Set_component_rotation_func  // part_1
+                    
+                    0_Component += 0x98
+                    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                    if
+                        0_Component > 0
+                    then
+                        
+                        0_ZAngle = 3.1415926536 // rad
+                        005B: 0_XAngle += 0_SecondPantographAngle // (float) 
+
+                        gosub @_Set_component_rotation_func // part_2
+
+                        0_Component += 0x98
+                        0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                        if
+                            0_Component > 0
+                        then
+                        
+                            0_ZAngle = 3.1415926536 // rad
+                            0087: 0_XAngle = 0_SecondPantographAngle // (float) 
+                                
+                            gosub @_Set_component_rotation_func // part_3
+                        end 
+                    end
+                    
+                    0085: 0_Component = 31@ // (int) 
+                    
+                    0_Component += 0x9C
+                    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                    if
+                        0_Component > 0
+                    then
+                        0A8E: 0_StringPart1 = 0_Component + 172 // int    
+                        0A8E: 0_StringPart2 = 0_Component + 176 // int
+                        0A8D: 0_StringPart1 = read_memory 0_StringPart1 size 4 virtual_protect 0
+                        0A8D: 0_StringPart2 = read_memory 0_StringPart2 size 4 virtual_protect 0                 
+                        if
+                            05AE:  0_ComponentName == '4panpart' 
+                        then                        
+                            0_ZAngle = 3.1415926536 // rad
+                            0087: 0_XAngle = 0_FirstPantographAngle // (float) 
+    
+                            gosub @_Set_component_rotation_func // part_4
+    
+                            0_Component += 0x98
+                            0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+                            if
+                                0_Component > 0
+                            then
+                            
+                                0_ZAngle = 3.1415926536 // rad
+                                005B: 0_XAngle += 0_SecondPantographAngle // (float) 
+                                    
+                                gosub @_Set_component_rotation_func // part_5
+                            end 
+                        end // component 4 defined
+                    end                                                        
+                end // component 1 defined
+            end
+        end      
+    end
+   
+    if
+        09E3:   train 0_Train on_forward_direction
+    then
+        0_CarriageStruct += 0x5D0 
+    else
+        0_CarriageStruct += 0x5D4   
+    end
+    0A8D: 0_CarriageStruct = read_memory 0_CarriageStruct size 4 virtual_protect 0 // next carriage struct  
+                      
+end
+
+return
+
+//----------------------Functions-----------------------------------------------------------------------------------------------
+
+:_Calculate_bogie_rotation_func
+0A8E: 0_ComponentForwardOffset = 0_Component + 68 // int  Local Y-position
+0A8D: 0_ComponentForwardOffset = read_memory 0_ComponentForwardOffset size 4 virtual_protect 0
+0087: 0_ComponentBackOffset = 0_ComponentForwardOffset // (float) 
+0_ComponentForwardOffset += 0.1
+0_ComponentBackOffset -= 0.1
+    
+0407: store_coords_to 0_XForw 0_YForw 31@ from_car 0_CarriageHandle with_offset 0.0 0_ComponentForwardOffset 0.0 
+0407: store_coords_to 0_XBack 0_YBack 31@ from_car 0_CarriageHandle with_offset 0.0 0_ComponentBackOffset 0.0 
+    
+0509: 0_ForwDistance = distance_between_XY 0_XForw 0_YForw and_XY 0_X2 0_Y2 
+0509: 0_BackDistance = distance_between_XY 0_XBack 0_YBack and_XY 0_X2 0_Y2 
+    
+while true    
+    if
+        09E3:   train 0_Train on_forward_direction
+    then
+        if
+            0035:   0_BackDistance >= 0_ForwDistance // (float) 
+        then
+            break
+        end
+    else
+        if
+            0035:   0_ForwDistance >= 0_BackDistance // (float) 
+        then
+            break
+        end
+    end        
+    0087: 0_X1 = 0_X2 // (float) 
+    0087: 0_Y1 = 0_Y2 // (float) 
+    0087: 0_Z1 = 0_Z2 // (float)         
+    0_CurrentPointAdress += 10
+    if
+        001D: 0_CurrentPointAdress > 0_AdressOfLastPointInRoute // (int) 
+    then
+        0085: 0_CurrentPointAdress = 0_StartOfTracksNdatContent // (int) 
+    end        
+    0085: 0_X2 = 0_CurrentPointAdress // (int) 
+    0A8E: 0_Y2 = 0_CurrentPointAdress + 2 // int  Y NPoint
+    0A8E: 0_Z2 = 0_CurrentPointAdress + 4 // int  Z NPoint        
+    for 31@ = 0 to 2
+        0A8D: 9@(31@,3i) = read_memory 9@(31@,3i) size 2 virtual_protect 0
+        if
+            9@(31@,3i) >= 0x8000 // negative word
+        then
+            9@(31@,3i) += 0xFFFF0000 // convert to negative dword
+        end 
+        0093: 9@(31@,3f) = integer 9@(31@,3i) to_float
+        9@(31@,3f) /= 8.0      
+    end
+    0509: 0_ForwDistance = distance_between_XY 0_XForw 0_YForw and_XY 0_X2 0_Y2 
+    0509: 0_BackDistance = distance_between_XY 0_XBack 0_YBack and_XY 0_X2 0_Y2    
+end
+    
+if
+    09E3:   train 0_Train on_forward_direction   
+then
+    0087: 0_XResult = 0_X2 // (float) 
+    0087: 0_YResult = 0_Y2 // (float) 
+    0087: 0_ZResult = 0_Z1 // (float)     
+    0063: 0_XResult -= 0_X1 // (float) 
+    0063: 0_YResult -= 0_Y1 // (float) 
+    0063: 0_ZResult -= 0_Z2 // (float) 
+else
+    0087: 0_XResult = 0_X1 // (float) 
+    0087: 0_YResult = 0_Y1 // (float) 
+    0087: 0_ZResult = 0_Z2 // (float)     
+    0063: 0_XResult -= 0_X2 // (float) 
+    0063: 0_YResult -= 0_Y2 // (float) 
+    0063: 0_ZResult -= 0_Z1 // (float)
+end
+0604: get_angle_between_vectors_{x,y} 0_XResult 0_YResult and_{0,1}_store_to 0_ZAngle // Z_angle
+006B: 0_XResult *= 0_XResult // (float) 
+006B: 0_YResult *= 0_YResult // (float) 
+005B: 0_XResult += 0_YResult // (float) 
+01FB: 0_XResult = square_root 0_XResult 
+0604: get_angle_between_vectors_{z,a} 0_ZResult 0_XResult and_{0,1}_store_to 0_XAngle // X_angle
+    
+0174: 0_CarriageZAngle = car 0_CarriageHandle Z_angle
+077D: 0_CarriageXAngle = car 0_CarriageHandle x_angle 
+
+0063: 0_ZAngle -= 0_CarriageZAngle // (float) 
+0063: 0_XAngle -= 0_CarriageXAngle // (float)       
+0_ZAngle /= 57.29578 
+0_XAngle /= 57.29578          
+return
+
+:_Set_component_rotation_func
+0085: 0_ComponentStruct = 0_Component // (int) 
+0_ComponentStruct += 64   // 0x10 + 48
+0A8D: 0_BackUpX = read_memory 0_ComponentStruct size 4 virtual_protect 0 
+0_ComponentStruct += 4
+0A8D: 0_BackUpY = read_memory 0_ComponentStruct size 4 virtual_protect 0
+0_ComponentStruct += 4
+0A8D: 0_BackUpZ = read_memory 0_ComponentStruct size 4 virtual_protect 0
+0_ComponentStruct -= 56
+0AA6: call_method 0x59B120 struct 0_ComponentStruct num_params 3 pop 0 0_ZAngle 0.0 0_XAngle  // rot Z rot Y rot X (radians)
+0_ComponentStruct += 48
+0A8C: write_memory 0_ComponentStruct size 4 value 0_BackUpX virtual_protect 0 
+0_ComponentStruct += 4
+0A8C: write_memory 0_ComponentStruct size 4 value 0_BackUpY virtual_protect 0      
+0_ComponentStruct += 4                                                       
+0A8C: write_memory 0_ComponentStruct size 4 value 0_BackUpZ virtual_protect 0 
+return
+
+:_Get_pointers_of_wheels_and_to_set_wheels_rotation_func
+if
+    0_Component > 0
+then
+    0_Component += 0x98 // child
+    0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+    if
+        0_Component > 0
+    then
+    
+        if
+            88B7:   not test 0_Flags bit 0     
+        then         
+            0A8E: 0_AtY = 0_Component + 52 // int
+            0A8E: 0_AtZ = 0_Component + 56 // int
+            0A8D: 0_AtY = read_memory 0_AtY size 4 virtual_protect 0
+            0A8D: 0_AtZ = read_memory 0_AtZ size 4 virtual_protect 0
+
+            0604: get_angle_between_vectors_{y,z} 0_AtY 0_AtZ and_{0,1}_store_to 0_CurrentWheelAngle // X_angle          
+            
+            005B: 0_CurrentWheelAngle += 0_IncrementOfWheelAngle // (float)
+            0656: get_angle 0_CurrentWheelAngle absolute_degrees_to 0_CurrentWheelAngle   
+            0_CurrentWheelAngle /= 57.29578   // rad
+            
+            0_ZAngle = 0.0
+            0087: 0_XAngle = 0_CurrentWheelAngle // (float)
+                                  
+            08BD: set 0_Flags bit 0     
+        end
+        
+        gosub @_Set_component_rotation_func
+       
+        for 31@ = 0 to 4
+            0_Component += 0x9C // next
+            0A8D: 0_Component = read_memory 0_Component size 4 virtual_protect 0
+            if
+                0_Component > 0
+            then
+                gosub @_Set_component_rotation_func
+            else
+                break
+            end                
+        end
+    end
+end
+return
