@@ -1,0 +1,299 @@
+{$CLEO} // Скрипт для создания неоновой подсветки на автомобилях. Пример подмены кода gta_sa.exe своим asm-кодом
+const
+    0_BufferAdress = 0@
+        0_PlayerCarStruct = 0@
+    0_VarAdress = 1@
+    0_ESI = 2@
+    0_PlayerCar = 3@
+    0_Red = 4@
+    0_Green = 5@
+    0_Blue = 6@
+    0_Float = 7@
+    0_DimensionX = 8@
+    0_DimensionY = 9@
+    0_NewPlayerCar = 10@
+end
+0AC6: 0_BufferAdress = label @Asm_1 offset  // заменяем команды кода exe командами перехода на буфер
+0A8C: write_memory 0x6ABCB3 size 1 value 0xB8 virtual_protect 1 // mov, eax ...   
+0A8C: write_memory 0x6ABCB4 size 4 value 0_BufferAdress virtual_protect 1 //  ... adress
+0A8C: write_memory 0x6ABCB8 size 2 value 0xE0FF virtual_protect 1 //  jmp eax
+
+0_BufferAdress += 1                         // заполняем адреса локальных переменных в коде буфера
+0AC7: 0_VarAdress = var 0_PlayerCarStruct offset
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0 
+
+0AC7: 0_VarAdress = var 0_ESI offset
+0AC6: 0_BufferAdress = label @Asm_2 offset
+0_BufferAdress += 1
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC6: 0_BufferAdress = label @Asm_5 offset
+0_BufferAdress += 1
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_3 offset
+0AC7: 0_VarAdress = var 0_Blue offset
+0_BufferAdress += 1
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Green offset
+0_BufferAdress += 6
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Red offset
+0_BufferAdress += 6
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_41 offset
+0AC7: 0_VarAdress = var 0_DimensionX offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Float offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_42 offset
+0AC7: 0_VarAdress = var 0_DimensionX offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Float offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_43 offset
+0AC7: 0_VarAdress = var 0_DimensionY offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Float offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_44 offset
+0AC7: 0_VarAdress = var 0_DimensionY offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+0AC7: 0_VarAdress = var 0_Float offset
+0_BufferAdress += 7
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0
+
+0AC6: 0_BufferAdress = label @Asm_411 offset
+0_BufferAdress += 1
+0AC7: 0_VarAdress = var 0_PlayerCarStruct offset
+0A8C: write_memory 0_BufferAdress size 4 value 0_VarAdress virtual_protect 0    
+
+0_PlayerCar = -1
+
+while true
+    wait 0
+    if
+        not player.Defined($player_char)
+    then
+        continue
+    end
+    if and
+        actor.Driving($player_actor)
+        847A:   not actor $PLAYER_ACTOR driving_bike 
+        84A7:   not actor $PLAYER_ACTOR driving_boat 
+        84C8:   not actor $PLAYER_ACTOR driving_flying_vehicle 
+        89AE:   not actor $PLAYER_ACTOR driving_train 
+    then
+        03C0: 0_NewPlayerCar = actor $PLAYER_ACTOR car
+        if
+            803B:   not  0_NewPlayerCar == 0_PlayerCar // (int) 
+        then
+            0085: 0_PlayerCar = 0_NewPlayerCar // (int)
+            0_PlayerCarStruct = 0
+        else
+            if
+                0ADC: test_cheat "NEONRED"
+            then
+                0_Red = 128
+                0_Green = 0
+                0_Blue = 0
+                gosub @Initialise_car
+            end
+            if
+                0ADC: test_cheat "NEONBLUE"
+            then
+                0_Red = 0
+                0_Green = 0
+                0_Blue = 128
+                gosub @Initialise_car
+            end
+            if
+                0ADC: test_cheat "NEONGREEN"
+            then
+                0_Red = 0
+                0_Green = 128
+                0_Blue = 0
+                gosub @Initialise_car
+            end 
+            if
+                0ADC: test_cheat "NEONWHITE"
+            then
+                0_Red = 128
+                0_Green = 128
+                0_Blue = 128
+                gosub @Initialise_car
+            end
+            if
+                0ADC: test_cheat "NEONYELLOW"
+            then
+                0_Red = 128
+                0_Green = 128
+                0_Blue = 0
+                gosub @Initialise_car
+            end
+            if
+                0ADC: test_cheat "NEONCYAN"
+            then
+                0_Red = 0
+                0_Green = 128
+                0_Blue = 128
+                gosub @Initialise_car
+            end
+            if
+                0ADC: test_cheat "NEONPURPLE"
+            then
+                0_Red = 128
+                0_Green = 0
+                0_Blue = 128
+                gosub @Initialise_car
+            end 
+            if
+                0ADC: test_cheat "NEONOFF"
+            then
+                0_PlayerCarStruct = 0    
+            end  
+        end
+    end
+    if
+        056E:   car 0_PlayerCar defined 
+    then
+        if or
+            0119:   car 0_PlayerCar wrecked 
+            01F4:   car 0_PlayerCar flipped 
+        then
+            0_PlayerCarStruct = 0
+        end
+    else
+        0_PlayerCarStruct = 0    
+    end     
+end
+
+:Initialise_car
+0085: 0_PlayerCar = 0_NewPlayerCar // (int) 
+0441: 31@ = car 0_PlayerCar model 
+07E4: get_model 31@ dimensions_cornerA_to 31@ 30@ 29@ dimensions_cornerB_to 0_DimensionX 0_DimensionY 28@ 
+0_DimensionX += 0.3
+0_DimensionY += 0.3
+0A97: 0_PlayerCarStruct = car 0_PlayerCar struct
+return
+
+:Asm_1
+hex      
+    A1 00 00 00 00  // mov eax, 0_PlayerCarStruct   
+    3B F0           // cmp esi, eax                Проверяем, явяется ли текущий обрабатываемый транспорт автомобилем игрока
+    75 47           // jnz +0x47                   Если нет, то пропускаем участок кода в 0x47 байтов
+
+    89 F0           // mov eax, esi
+end
+
+:Asm_2
+hex
+    A3 00 00 00 00  // mov 0_ESI, eax              
+    0F 94 C0        // setz al
+    50              // push eax                    Передаём параметры функции, создающей проекцию света
+    6A 00           // push 0
+    68 00 00 80 3F  // push 1.0
+    6A 00           // push 0
+    68 00 00 00 40  // push 2.0
+end
+
+:Asm_3
+hex    
+    A1 00 00 00 00  // mov eax, 0_Blue                              
+    50              // push eax 
+    A1 00 00 00 00  // mov eax, 0_Green                              
+    50              // push eax   
+    A1 00 00 00 00  // mov eax, 0_Red                              
+    50              // push eax 
+    68 FF 00 00 00  // push 255
+end
+
+:Asm_41
+hex
+    8B 46 14        // mov eax, [esi+14h]          Вытянем проекцию вдоль продольной оси автомобиля
+    D9 40 04        // fld dword ptr [eax+4]       Для этого необходимо вычислить угол поворота автомобиля
+    B8 00 00 00 00  // mov eax, 0_DimensionX
+    D8 08           // fmul dword ptr [eax]
+    B8 00 00 00 00  // mov eax, 0_Float
+    D9 18           // fstp [eax]
+    8B 00           // mov eax, [eax]
+    50              // push eax
+end
+
+:Asm_411
+hex
+    A1 00 00 00 00  // mov eax, 0_PlayerCarStruct   
+    3B F0           // cmp esi, eax   
+    75 65           // jnz +0x65   
+end
+
+:Asm_42
+hex
+    8B 46 14        // mov eax, [esi+14h]
+    D9 40 00        // fld dword ptr [eax+0]
+    B8 00 00 00 00  // mov eax, 0_DimensionX
+    D8 08           // fmul dword ptr [eax]
+    B8 00 00 00 00  // mov eax, 0_Float
+    D9 18           // fstp [eax]
+    8B 00           // mov eax, [eax]
+    50              // push eax
+end
+
+:Asm_43
+hex
+    8B 46 14        // mov eax, [esi+14h]
+    D9 40 14        // fld dword ptr [eax+0x14]
+    B8 00 00 00 00  // mov eax, 0_DimensionY
+    D8 08           // fmul dword ptr [eax]
+    B8 00 00 00 00  // mov eax, 0_Float
+    D9 18           // fstp [eax]
+    8B 00           // mov eax, [eax]
+    50              // push eax
+end
+
+:Asm_44
+hex
+    8B 46 14        // mov eax, [esi+14h]
+    D9 40 10        // fld dword ptr [eax+0x10]
+    B8 00 00 00 00  // mov eax, 0_DimensionY
+    D8 08           // fmul dword ptr [eax]
+    B8 00 00 00 00  // mov eax, 0_Float
+    D9 18           // fstp [eax]
+    8B 00           // mov eax, [eax]
+    50              // push eax
+    
+    
+    8B 46 14        // mov eax, [esi+14h]
+    83 C0 30        // add eax, 0x30   
+    50              // push eax
+    A1 F4 03 C4 00  // mov eax, [_texShadExp] 
+    50              // push eax
+    6A 02           // push 2 
+    B8 90 73 70 00  // mov eax, 0x707390           Вызываем функцию, создающую проекцию света
+    FF D0           // call eax
+    83 C4 40        // add esp, 0x40 
+end
+
+:Asm_5
+hex       
+    A1 00 00 00 00  // mov eax, 0_ESI   
+    89 C6           // mov esi, eax     
+    
+    8B 46 14        // mov eax, [esi+14h]          Выполняем команды стандартного кода, которые в exe были затёрты командами перехода на буфер
+    89 F1           // mov ecx, esi
+    50              // push eax    
+    B8 60 1A 6E 00  // mov eax, 0x6E1A60
+    FF D0           // call eax
+    B8 BE BC 6A 00  // mov eax, 0x6ABCBE           Возвращаемся в exe
+    FF E0           // jmp eax   
+end
